@@ -17,6 +17,7 @@ app.get("/", (req, res) => {
       "Unofficial fare estimator modeled on publicly reported Pathao rate cards. Not affiliated with or endorsed by Pathao Ltd.",
     endpoints: {
       "/vehicles": "List available vehicle types and cities",
+      "/rates?vehicle=bike&city=dhaka": "Get the raw rate-card numbers (base fare, per-km, per-min, minimum fare)",
       "/estimate?vehicle=bike&city=dhaka&distance_km=5&duration_min=15":
         "Get a fare estimate"
     }
@@ -32,6 +33,45 @@ app.get("/vehicles", (req, res) => {
     cities: Object.keys(v.city)
   }));
   res.json({ vehicles });
+});
+
+// GET /rates
+// Query params: vehicle, city
+// Returns the raw rate-card numbers (base fare, per-km, per-min, minimum fare)
+app.get("/rates", (req, res) => {
+  const { vehicle, city } = req.query;
+
+  if (!vehicle || !city) {
+    return res.status(400).json({
+      error: "Missing required query params: vehicle, city"
+    });
+  }
+
+  const vehicleData = RATE_CARD[vehicle.toLowerCase()];
+  if (!vehicleData) {
+    return res.status(404).json({
+      error: `Unknown vehicle type "${vehicle}". Try one of: ${Object.keys(RATE_CARD).join(", ")}`
+    });
+  }
+
+  const cityRates = vehicleData.city[city.toLowerCase()];
+  if (!cityRates) {
+    return res.status(404).json({
+      error: `No rates for city "${city}" with vehicle "${vehicle}". Available cities: ${Object.keys(vehicleData.city).join(", ")}`
+    });
+  }
+
+  res.json({
+    vehicle: vehicleData.label,
+    city: city.toLowerCase(),
+    baseFare: cityRates.baseFare,
+    perKm: cityRates.perKm,
+    perMin: cityRates.perMin,
+    minimumFare: cityRates.minimumFare,
+    currency: "BDT",
+    disclaimer:
+      "Based on publicly reported rate cards. Not official Pathao pricing."
+  });
 });
 
 // GET /estimate
